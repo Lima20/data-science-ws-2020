@@ -1,0 +1,221 @@
+---
+title: "Beispiel-Notebook EDA / Data Science 1. Session"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Die Hausaufgabe
+
+* Welche Bücher sind am besten bewertet?
+* Sollte die Anzahl der Bewertungen auch mit reinspielen? 
+* Welche Autoren sind am besten bewertet?
+* Welcher Verlag hat die besten Bücher?
+
+# Libraries und Daten laden
+
+Library tidyverse laden, bitte zunächst installieren über "Tools" => "Install Packages"
+
+```{r}
+library(tidyverse)
+```
+
+Wir nutzen den [Book Crossing Datensatz](http://www2.informatik.uni-freiburg.de/~cziegler/BX/). Die Daten müssen zuerst geladen, entpackt und dann RStudio zur Verfügung gestellt werden. Die Befehle zum Laden der Dateien können einfach aus dem "Import Dataset"-Menü kopiert werden
+
+```{r}
+BX_Book_Ratings <- read_delim("BX-CSV-Dump/BX-Book-Ratings.csv", 
+    ";", escape_double = FALSE, trim_ws = TRUE)
+BX_Books <- read_delim("BX-CSV-Dump/BX-Books.csv", 
+    ";", escape_double = FALSE, trim_ws = TRUE)
+BX_Users <- read_delim("BX-CSV-Dump/BX-Users.csv", 
+    ";", escape_double = FALSE, trim_ws = TRUE)
+```
+
+# Säubern und Transformation der Daten
+
+Wir benötigen nicht alle Spalten aus dem Bücher-Dataframe und schreiben das Ergebnis in einen neuen Dataframe:
+
+```{r}
+(books <- BX_Books %>%
+  select(ISBN,`Book-Title`,`Book-Author`,`Year-Of-Publication`,Publisher))
+```
+Um Arbeitsspeicher zu sparen, löschen wir den alten Dataframe (das sollten wir nur tun, wenn wir uns sicher sind, dass wir wirklich nichts mehr aus dem alten Dataframe benötigen). Wir hätten auch einfach die Transformation in das gleiche Objekt schreiben können (BX_Books <- BX_Books), aber der neue Name ist einfacher :) rm steht übrigens für remove:
+
+```{r}
+rm(BX_Books)
+```
+
+In dem Users-Datensatz wird Zunächst einmal das Alter von Character auf Numerisch geändert. Das Ergebnis schreiben wir in einen neuen DataFrame:
+
+```{r}
+users <- BX_Users %>%
+  mutate(Age = as.numeric(Age))
+```
+
+Die Meldung "Problem with `mutate()` input `Age`. ℹ NAs introduced by coercion" sieht gefährlich aus, und in manchen Fällen kann sie es auch sein. Da wir von Character auf Numerisch konvetieren, beschwert sich R, dass aus NULL keine Zahl gemacht werden kann. Auch hier schreiben wir das Ergebnis in einen neuen Dataframe und löschen den alten.
+
+```{r}
+rm(BX_Users)
+```
+
+Der Dataframe mit den Ratings wird mit dem Dataframe books gemerged, da wir nicht nur die ISBN haben wollen. Auch hiernach löschen wir den Original-Dataframe, aber erst nachdem wir uns davon überzeugt haben, dass der left_join gut gelaufen ist. Indem ich den Ausdruck in Klammern setze, kann ich das Ergebnis sofort sehen:
+
+```{r}
+(ratings <- BX_Book_Ratings %>%
+  left_join(books))
+```
+
+```{r}
+rm(BX_Book_Ratings)
+```
+
+Offensichtlich habe ich einige Daten ohne Titel etc; diese möchte ich nicht in meinem Datensatz behalten.
+
+```{r}
+(ratings <- ratings %>%
+  filter(!is.na(`Book-Title`)))
+```
+Wir schauen uns die Stimmigkeit der Daten an. Zunächst einmal gucken wir, wie viele Ratings die Nutzer abgegeben haben beziehungsweise wie viele Bücher sie gelesen haben (ein Rating von 0 bedeutet, dass der Nutzer kein Rating abgegeben hat):
+
+```{r}
+(ratings_per_user <- ratings %>%
+  group_by(`User-ID`) %>%
+  summarize(n = n()) %>%
+  arrange(desc(n)))
+```
+
+Ein Nutzer mit vielen 1.000 Ratings/Büchern klingt zunächst einmal verdächtig, aber wir lassen sie drin. Auffallend ist aber, dass wir nur 92.107 Nutzer haben, d.h. anscheinend, dass der Rest angemeldet war, aber nix gemacht hat? Diese werden uns für unsere Auswertung wahrscheinlich nicht helfen, so dass wir sie rausnehmen:
+
+```{r}
+(users <- users %>%
+  left_join(ratings_per_user) %>%
+  filter(n > 0))
+```
+
+Mit der Stadt können wir auch nicht so viel anfangen, so dass wir uns nur das Land ziehen; hierzu verwenden wir einen regulären Ausdruck:
+
+```{r}
+(users <- users %>%
+  filter(!is.na(Age)) %>%
+  mutate(country = str_remove(Location,".*,")) %>%
+  filter(country != ""))
+```
+Wie viele Nutzer haben wir pro Land?
+
+```{r}
+users %>%
+  group_by(country) %>%
+  summarize(n = n()) %>%
+  arrange(desc(n))
+```
+
+Wir sehen, dass ein paar Nutzer es nicht hinbekommen haben, ihr Land richtig einzugeben und versuchen das mit einem regulären Ausdruck zu bereinigen:
+
+```{r}
+users <- users %>%
+  mutate(country = str_extract(country, "\\w+"))
+```
+
+Nun schauen wir uns noch die Verteilung an:
+
+```{r}
+(ratings.distribution <- ratings %>%
+  group_by(`User-ID`) %>%
+  summarize(n = n()) %>%
+  arrange(desc(n)) %>%
+  group_by(n) %>%
+  summarize(m = n()) )
+```
+
+```{r}
+hist(ratings.distribution$n, breaks=100)
+```
+
+
+
+# Welche Bücher sind am besten bewertet?
+
+```{r}
+ratings %>%
+  group_by(`Book-Title`) %>%
+  filter(`Book-Rating` > 0) %>%
+  summarise(dieBestenBuecher = mean(`Book-Rating`)) %>%
+  arrange(desc(dieBestenBuecher))
+```
+
+Wir sehen, dass diese Sortierung überhaupt keinen Sinn ergibt.
+
+# Sollte die Anzahl der Bewertungen auch mit reinspielen? 
+
+
+```{r}
+ratings %>%
+  group_by(`Book-Title`) %>%
+  filter(`Book-Rating` > 0) %>%
+  summarise(dieBestenBuecher = median(`Book-Rating`), wieviele = n()) %>%
+  arrange(desc(dieBestenBuecher), desc(wieviele)) %>%
+  filter(wieviele > 10)
+```
+
+
+# Welche Autoren sind am besten bewertet?
+
+```{r}
+ratings %>%
+  group_by(`Book-Author`) %>%
+  filter(`Book-Rating` > 0) %>%
+  summarise(dieBestenBuecher = median(`Book-Rating`), wieviele = n()) %>%
+  arrange(desc(dieBestenBuecher), desc(wieviele)) %>%
+  filter(wieviele > 10)
+```
+
+# Welcher Verlag hat die besten Bücher?
+
+Wir haben hier sehr viele Publisher drin, die nur ein Buch veröffentlicht haben, diese sollten wir rausnehmen. Manche Publisher haben aber auch sehr seltsame Namen, so dass dies auch bereinigt werden sollte.
+
+```{r}
+ratings %>%
+  group_by(Publisher) %>%
+  filter(`Book-Rating` > 0) %>%
+  summarise(dieBestenBuecher = median(`Book-Rating`), wieviele = n()) %>%
+  arrange(desc(dieBestenBuecher), desc(wieviele)) %>%
+  filter(wieviele > 10)
+```
+
+Das Ergebnis ist ein bisschen unerwartet :)
+
+Wir könnten das auch anders lösen, indem wir in die vorherige Abfrage einfach den Publisher mitaufnehmen:
+
+```{r}
+ratings %>%
+  group_by(`Book-Title`, Publisher) %>%
+  filter(`Book-Rating` > 0) %>%
+  summarise(dieBestenBuecher = median(`Book-Rating`), wieviele = n()) %>%
+  arrange(desc(dieBestenBuecher), desc(wieviele)) %>%
+  filter(wieviele > 10) %>%
+  ungroup() %>%
+  select(Publisher) %>%
+  unique()
+```
+
+# Weitere Gedanken
+
+Insgesamt stellt sich aber die Frage, was das überhaupt ist, "das Beste", denn hier geht es nur um Popularität. So könnte es in jedem Land unterschiedliche Präferenzen geben.
+
+```{r}
+ratings %>%
+  left_join(users) %>%
+  filter(`Book-Rating` > 0) %>%
+  filter(country == "germany") %>%
+  group_by(`Book-Title`) %>%
+  filter(`Book-Rating` > 0) %>%
+  summarise(dieBestenBuecher = median(`Book-Rating`), wieviele = n()) %>%
+  arrange(desc(dieBestenBuecher), desc(wieviele)) %>%
+  filter(wieviele > 10)
+```
+
+
+
+
+
+
