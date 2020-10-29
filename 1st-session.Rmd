@@ -36,8 +36,9 @@ BX_Users <- read_delim("BX-CSV-Dump/BX-Users.csv",
 Wir benötigen nicht alle Spalten aus dem Bücher-Dataframe und schreiben das Ergebnis in einen neuen Dataframe:
 
 ```{r}
-(books <- BX_Books %>%
-  select(ISBN,`Book-Title`,`Book-Author`,`Year-Of-Publication`,Publisher))
+books <- BX_Books %>%
+  select(ISBN,`Book-Title`,`Book-Author`,`Year-Of-Publication`,Publisher)
+head(books)
 ```
 Um Arbeitsspeicher zu sparen, löschen wir den alten Dataframe (das sollten wir nur tun, wenn wir uns sicher sind, dass wir wirklich nichts mehr aus dem alten Dataframe benötigen). Wir hätten auch einfach die Transformation in das gleiche Objekt schreiben können (BX_Books <- BX_Books), aber der neue Name ist einfacher :) rm steht übrigens für remove:
 
@@ -58,11 +59,12 @@ Die Meldung "Problem with `mutate()` input `Age`. ℹ NAs introduced by coercion
 rm(BX_Users)
 ```
 
-Der Dataframe mit den Ratings wird mit dem Dataframe books gemerged, da wir nicht nur die ISBN haben wollen. Auch hiernach löschen wir den Original-Dataframe, aber erst nachdem wir uns davon überzeugt haben, dass der left_join gut gelaufen ist. Indem ich den Ausdruck in Klammern setze, kann ich das Ergebnis sofort sehen:
+Der Dataframe mit den Ratings wird mit dem Dataframe books gemerged, da wir nicht nur die ISBN haben wollen. Auch hiernach löschen wir den Original-Dataframe, aber erst nachdem wir uns davon überzeugt haben, dass der left_join gut gelaufen ist. Indem ich den Ausdruck in Klammern setze, kann ich das Ergebnis sofort sehen oder head() benutzen.
 
 ```{r}
-(ratings <- BX_Book_Ratings %>%
-  left_join(books))
+ratings <- BX_Book_Ratings %>%
+  left_join(books)
+head(ratings)
 ```
 
 ```{r}
@@ -72,33 +74,36 @@ rm(BX_Book_Ratings)
 Offensichtlich habe ich einige Daten ohne Titel etc; diese möchte ich nicht in meinem Datensatz behalten.
 
 ```{r}
-(ratings <- ratings %>%
-  filter(!is.na(`Book-Title`)))
+ratings <- ratings %>%
+  filter(!is.na(`Book-Title`))
 ```
 Wir schauen uns die Stimmigkeit der Daten an. Zunächst einmal gucken wir, wie viele Ratings die Nutzer abgegeben haben beziehungsweise wie viele Bücher sie gelesen haben (ein Rating von 0 bedeutet, dass der Nutzer kein Rating abgegeben hat):
 
 ```{r}
-(ratings_per_user <- ratings %>%
+ratings_per_user <- ratings %>%
   group_by(`User-ID`) %>%
   summarize(n = n()) %>%
-  arrange(desc(n)))
+  arrange(desc(n))
+head(ratings_per_user)
 ```
 
 Ein Nutzer mit vielen 1.000 Ratings/Büchern klingt zunächst einmal verdächtig, aber wir lassen sie drin. Auffallend ist aber, dass wir nur 92.107 Nutzer haben, d.h. anscheinend, dass der Rest angemeldet war, aber nix gemacht hat? Diese werden uns für unsere Auswertung wahrscheinlich nicht helfen, so dass wir sie rausnehmen:
 
 ```{r}
-(users <- users %>%
+users <- users %>%
   left_join(ratings_per_user) %>%
-  filter(n > 0))
+  filter(n > 0)
+head(users)
 ```
 
 Mit der Stadt können wir auch nicht so viel anfangen, so dass wir uns nur das Land ziehen; hierzu verwenden wir einen regulären Ausdruck:
 
 ```{r}
-(users <- users %>%
+users <- users %>%
   filter(!is.na(Age)) %>%
   mutate(country = str_remove(Location,".*,")) %>%
-  filter(country != ""))
+  filter(country != "")
+head(users)
 ```
 Wie viele Nutzer haben wir pro Land?
 
@@ -140,7 +145,8 @@ ratings %>%
   group_by(`Book-Title`) %>%
   filter(`Book-Rating` > 0) %>%
   summarise(dieBestenBuecher = mean(`Book-Rating`)) %>%
-  arrange(desc(dieBestenBuecher))
+  arrange(desc(dieBestenBuecher)) %>%
+  head(.,10)
 ```
 
 Wir sehen, dass diese Sortierung überhaupt keinen Sinn ergibt.
@@ -154,7 +160,8 @@ ratings %>%
   filter(`Book-Rating` > 0) %>%
   summarise(dieBestenBuecher = median(`Book-Rating`), wieviele = n()) %>%
   arrange(desc(dieBestenBuecher), desc(wieviele)) %>%
-  filter(wieviele > 10)
+  filter(wieviele > 10) %>%
+  head(.,10)
 ```
 
 
@@ -166,7 +173,8 @@ ratings %>%
   filter(`Book-Rating` > 0) %>%
   summarise(dieBestenBuecher = median(`Book-Rating`), wieviele = n()) %>%
   arrange(desc(dieBestenBuecher), desc(wieviele)) %>%
-  filter(wieviele > 10)
+  filter(wieviele > 10) %>%
+  head(.,10)
 ```
 
 # Welcher Verlag hat die besten Bücher?
@@ -179,7 +187,8 @@ ratings %>%
   filter(`Book-Rating` > 0) %>%
   summarise(dieBestenBuecher = median(`Book-Rating`), wieviele = n()) %>%
   arrange(desc(dieBestenBuecher), desc(wieviele)) %>%
-  filter(wieviele > 10)
+  filter(wieviele > 10)  %>%
+  head(.,10)
 ```
 
 Das Ergebnis ist ein bisschen unerwartet :)
@@ -195,7 +204,8 @@ ratings %>%
   filter(wieviele > 10) %>%
   ungroup() %>%
   select(Publisher) %>%
-  unique()
+  unique() %>%
+  head(.,10)
 ```
 
 # Weitere Gedanken
@@ -211,7 +221,8 @@ ratings %>%
   filter(`Book-Rating` > 0) %>%
   summarise(dieBestenBuecher = median(`Book-Rating`), wieviele = n()) %>%
   arrange(desc(dieBestenBuecher), desc(wieviele)) %>%
-  filter(wieviele > 10)
+  filter(wieviele > 10) %>%
+  head(.,10)
 ```
 
 
