@@ -1,0 +1,135 @@
+---
+title: "Beispiel-Notebook EDA / Data Science 2. Session"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Libraries und Datenaufbereitung
+
+```{r}
+library(tidyverse)
+```
+
+Zunächst einmal wollen wir uns einen Datensatz bauen, den wir immer wieder verwenden können.
+
+```{r}
+BX_Book_Ratings <- read_delim("BX-CSV-Dump/BX-Book-Ratings.csv", 
+    ";", escape_double = FALSE, trim_ws = TRUE)
+BX_Books <- read_delim("BX-CSV-Dump/BX-Books.csv", 
+    ";", escape_double = FALSE, trim_ws = TRUE)
+BX_Users <- read_delim("BX-CSV-Dump/BX-Users.csv", 
+    ";", escape_double = FALSE, trim_ws = TRUE)
+```
+
+```{r}
+books <- BX_Books %>%
+  select(ISBN,`Book-Title`,`Book-Author`,`Year-Of-Publication`,Publisher)
+rm(BX_Books)
+users <- BX_Users %>%
+  mutate(Age = as.numeric(Age))
+rm(BX_Users)
+ratings <- BX_Book_Ratings %>%
+  left_join(books)
+rm(BX_Book_Ratings)
+ratings <- ratings %>%
+  filter(!is.na(`Book-Title`))
+
+users <- users %>%
+  filter(!is.na(Age)) %>%
+  mutate(country = str_remove(Location,".*,")) %>%
+  filter(country != "")
+all <- ratings %>%
+  left_join(users) %>%
+  select(-Location)
+write_csv(all, "all.csv")
+```
+
+
+Gibt es eine lineare Beziehung zwischen Anzahl Bücher pro Publisher und Anzahl Ratings, die die Bücher eines Publishers erhalten? (hier müssen Sie wieder etwas Data Wrangling betreiben)
+
+```{r}
+(ratings_vs_books <- all %>%
+  filter(`Book-Rating`>0) %>%
+  group_by(Publisher) %>%
+  mutate(number_of_ratings = n()) %>%
+  select(Publisher,`Book-Title`,number_of_ratings) %>%
+  unique() %>%
+  mutate(number_of_books = n()) %>%
+  ungroup() %>%
+  select(number_of_books,number_of_ratings))
+  
+```
+```{r}
+plot(ratings_vs_books)
+```
+
+```{r}
+fit <- lm(ratings_vs_books$number_of_ratings ~ ratings_vs_books$number_of_books)
+summary(fit)
+```
+
+```{r}
+plot(ratings_vs_books)
+abline(fit)
+```
+Heteroskedastizität (im Gegensatz zur Homoskedastizität): Die Varianz der Störterme ist nicht gleichmäßig verteilt, die Streuung um die Gerade wird nach rechts größer. Für die klassische lineare Regression wird Homoskedastizität vorausgesetzt. Zwar ist es immer noch logisch, dass man mehr Ratings hat, wenn man mehr Bücher veröffentlicht hat, aber die lineare Beziehung ist nicht so stark wie die Zahlen zunächst zeigen.
+
+Haben ältere Bücher mehr Ratings, weil sie mehr Zeit haben, um Ratings zu sammeln? (muss nicht unbedingt mit einer linearen Regression analysiert werden)
+
+```{r}
+all %>%
+  select(`Book-Title`,`Year-Of-Publication`,`Book-Rating`) %>%
+  filter(`Book-Rating`>0) %>%
+  filter(`Year-Of-Publication` < 2020) %>%
+  filter(`Year-Of-Publication` > 1900) %>%
+  group_by(`Book-Title`) %>%
+  mutate(number_of_ratings = n()) %>%
+  ungroup() %>%
+  mutate(book_age = 2020-`Year-Of-Publication`) %>%
+  unique() %>%
+  select(book_age,number_of_ratings) %>%
+  plot()
+```
+Tatsächlich stammt die Datensammlung aus dem Jahr 2004, so dass Bücher danach nicht wirklich reinspielen sollten :) Außerdem könnte man argumentieren, dass Online-Portale erst seit Mitte der 90er existieren und man daher Bücher aus dieser Zeit in die Analyse einbeziehen sollte.
+
+```{r}
+all %>%
+  select(`Book-Title`,`Year-Of-Publication`,`Book-Rating`) %>%
+  filter(`Book-Rating`>0) %>%
+  filter(`Year-Of-Publication` < 2005) %>%
+  filter(`Year-Of-Publication` > 1990) %>%
+  group_by(`Book-Title`) %>%
+  mutate(number_of_ratings = n()) %>%
+  ungroup() %>%
+  mutate(book_age = 2004-`Year-Of-Publication`) %>%
+  unique() %>%
+  select(book_age,number_of_ratings) %>%
+  plot()
+```
+
+Diesr Plot ist nicht unbedingt hilfreich, versuchen wir es mit einem Boxplot:
+
+```{r}
+num_ratings_vs_age <- all %>%
+  select(`Book-Title`,`Year-Of-Publication`,`Book-Rating`) %>%
+  filter(`Book-Rating`>0) %>%
+  filter(`Year-Of-Publication` < 2005) %>%
+  filter(`Year-Of-Publication` > 1990) %>%
+  group_by(`Book-Title`) %>%
+  mutate(number_of_ratings = n()) %>%
+  ungroup() %>%
+  mutate(book_age = 2004-`Year-Of-Publication`) %>%
+  unique() %>%
+  select(book_age,number_of_ratings) 
+```
+
+```{r}
+boxplot(num_ratings_vs_age$number_of_ratings ~ num_ratings_vs_age$book_age)
+```
+Auch hier sieht man nicht besonders viel, daher logarithmisieren wir die Anzahl der Ratings:
+
+```{r}
+boxplot(log(num_ratings_vs_age$number_of_ratings) ~ num_ratings_vs_age$book_age)
+```
+
