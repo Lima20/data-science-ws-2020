@@ -115,7 +115,7 @@ num_ratings_vs_age <- all %>%
   select(`Book-Title`,`Year-Of-Publication`,`Book-Rating`) %>%
   filter(`Book-Rating`>0) %>%
   filter(`Year-Of-Publication` < 2005) %>%
-  filter(`Year-Of-Publication` > 1990) %>%
+  filter(`Year-Of-Publication` > 1950) %>%
   group_by(`Book-Title`) %>%
   mutate(number_of_ratings = n()) %>%
   ungroup() %>%

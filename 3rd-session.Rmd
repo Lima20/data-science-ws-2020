@@ -5,7 +5,7 @@ output:
     df_print: paged
 ---
 
-
+# Libraries
 
 ```{r}
 library(tidyverse)
@@ -17,6 +17,8 @@ library(arulesViz)
 ```{r}
 all <- read_csv("all.csv")
 ```
+
+# Erstellen der Regeln
 
 ```{r message=FALSE}
 i <- split(all$`Book-Title`,all$`User-ID`)
@@ -33,13 +35,106 @@ head(myRules_Direct, 20)
 ```
 
 
+# Visualisierung der Regeln
+
 ```{r}
 plot(basket_rules_hi, method="graph", main="Books")
 ```
 
+Den folgenden Code auskommentieren für eine interaktive Visualisierung
 
 ```{r}
-plot(basket_rules_hi, method="graph", main="Books", engine="interactive")
+#plot(basket_rules_hi, method="graph", main="Books", engine="interactive")
+```
+
+# Hausaufgaben
+
+## Erstellen Sie eine Analyse, bei der nicht die Bücher, sondern die Autoren in den Transaktionen enthalten sind
+
+```{r message=FALSE}
+i <- split(all$`Book-Author`,all$`User-ID`)
+txn <- as(i, "transactions")
+basket_rules <- apriori(txn, parameter = list(sup = 0.0015, conf = 0.001, minlen=2, target="rules"))
+```
+
+```{r}
+myRules_Direct <- as(basket_rules, "data.frame")
+basket_rules_hi <- head(basket_rules, by ="lift",100)
+head(myRules_Direct, 20)
+```
+
+```{r}
+plot(basket_rules_hi, method="graph", main="Books")
+```
+
+## Fällt Ihnen etwas in der Datenqualität auf?
+
+Einige Namen sind manchmal groß geschrieben, dann wieder klein, Umlaute sind zum Teil zerhackt.
+
+## Wie könnte man das mit regulären Ausdrücken beheben?
+
+```{r}
+all %>%
+  select(`Book-Author`) %>%
+  mutate(bereinigt = ifelse(grepl("[A-Z]{2}", `Book-Author`), str_to_title(`Book-Author`),`Book-Author`)) 
+```
+Das löst nicht alle Probleme... in manchen Fällen wird es sogar verschlimmbessert :)  Außerdem, manche Encodings sind auch nicht ok, die könnte man dann nur in der Quelldatei verbessern. Aber wir schreiben das dennoch in den Data Frame:
+
+```{r}
+all <- all %>%
+  mutate(`Book-Author`= ifelse(grepl("[A-Z]{2}", `Book-Author`), str_to_title(`Book-Author`),`Book-Author`)) 
+```
+
+```{r message=FALSE}
+i <- split(all$`Book-Author`,all$`User-ID`)
+txn <- as(i, "transactions")
+basket_rules <- apriori(txn, parameter = list(sup = 0.0015, conf = 0.001, minlen=2, target="rules"))
+basket_rules_hi <- head(basket_rules, by ="lift",100)
+plot(basket_rules_hi, method="graph", main="Books")
 ```
 
 
+
+## Wie kann man nun noch sicherstellen, dass nur die Autoren weiterempfohlen werden, deren Bücher man auch (mehrheitlich) gut fand?
+
+```{r}
+best_authors <- all %>%
+  filter(`Book-Rating` > 0) %>%
+  group_by(`Book-Author`, `Book-Title`) %>%
+  mutate(num_ratings = n()) %>%
+  filter(num_ratings > 5) %>%
+  mutate(median_rating = median(`Book-Rating`)) %>%
+  filter(median_rating > 6)
+```
+
+```{r message=FALSE}
+i <- split(best_authors$`Book-Author`,best_authors$`User-ID`)
+txn <- as(i, "transactions")
+basket_rules <- apriori(txn, parameter = list(sup = 0.0015, conf = 0.001, minlen=2, target="rules"))
+basket_rules_hi <- head(basket_rules, by ="lift",100)
+plot(basket_rules_hi, method="graph", main="Books")
+```
+
+## Welche anderen Analysen wären sinnvoll?
+
+Die vorherige Segmentierung ist sicherlich eher für Bücher geeignet denn für Autoren.
+
+Spannend wäre ob ältere Leser andere Bücher toll finden als jüngere Leser:
+
+```{r}
+all %>%
+  filter(`Book-Rating` > 0) %>%
+  filter(Age > 50) %>%
+  group_by(`Book-Title`) %>%
+  summarize(median_rating = median(`Book-Rating`), n = n()) %>%
+  arrange(desc(median_rating), desc(n))
+```
+
+```{r}
+all %>%
+  filter(`Book-Rating` > 0) %>%
+  filter(Age < 51) %>%
+  group_by(`Book-Title`) %>%
+  summarize(median_rating = median(`Book-Rating`), n = n()) %>%
+  arrange(desc(median_rating), desc(n))
+```

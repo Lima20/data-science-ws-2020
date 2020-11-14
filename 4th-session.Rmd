@@ -163,10 +163,6 @@ pROC_obj <- roc(as.numeric(as.character(test.results$survived)), test.results$pr
             plot=TRUE, auc.polygon=TRUE, max.auc.polygon=TRUE, grid=TRUE,
             print.auc=TRUE, show.thres=TRUE)
 
-
-sens.ci <- ci.se(pROC_obj)
-plot(sens.ci, type="shape", col="lightblue")
-plot(sens.ci, type="bars")
 ```
 # Decision Tree
 
