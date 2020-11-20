@@ -1,5 +1,5 @@
 ---
-title: "Beispiel-Notebook EDA / Data Science 3. Session"
+title: "Beispiel-Notebook EDA / Data Science 4. Session"
 output:
   html_document:
     df_print: paged
@@ -39,10 +39,17 @@ titanic.df <- titanic.df %>%
 
 ```{r}
 titanic.df <- na.omit(titanic.df)
+titanic.df <- titanic.df %>%
+  mutate(survived = as.factor(survived))
 ```
 
 ```{r}
-set.seed(107)
+train_control <- trainControl(method="cv", number=10, , savePredictions = TRUE)
+```
+
+
+```{r}
+set.seed(127)
 inTrain <- createDataPartition(
   y = titanic.df$survived,
   p = .8,
@@ -52,19 +59,25 @@ testing  <- titanic.df[-inTrain,]
 ```
 
 ```{r}
-model <- svm(survived ~ ., data = training)
+model <- train(survived~., data=training, trControl=train_control, method="svmLinear")
+
 summary(model)
 pred <- predict(model, testing[,-1], probability = FALSE)
 ```
+```{r}
+model$pred
+```
+
 
 ```{r}
 (test.results <- cbind(pred, testing))
+test.results <- test.results %>%
+  mutate(survived = as.numeric(survived)) %>%
+  mutate(pred = as.numeric(pred))
 ```
 
 ```{r}
-test.results2 <- test.results %>%
-  mutate(pred = ifelse(pred>=0.5,1,0))
-table(test.results2$pred, testing$survived)
+table(test.results$pred, testing$survived)
 ```
 
 
@@ -99,7 +112,7 @@ titanic.df <- titanic.df %>%
 ```
 
 ```{r}
-set.seed(107)
+set.seed(393)
 inTrain <- createDataPartition(
   y = titanic.df$survived,
   p = .8,
@@ -135,7 +148,7 @@ my_training <- training %>%
   mutate(survived = as.factor(survived))%>%
   mutate(sex = as.factor(sex))%>%
   mutate(pclass = as.factor(pclass)) %>%
-  mutate(age = as.factor(age))
+mutate(age = as.factor(ifelse(age < 7, "child", "adult")))
 model <- naiveBayes(survived ~ ., data = my_training)
 model
 ```
@@ -144,7 +157,7 @@ model
 my_testing <- testing %>%
   mutate(sex = as.factor(sex)) %>%
   mutate(pclass = as.factor(pclass))%>%
-  mutate(age = as.factor(age))
+  mutate(age = as.factor(ifelse(age < 7, "child", "adult")))
 pred <- predict(model, my_testing)
 table(pred, my_testing$survived)
 ```
@@ -157,7 +170,7 @@ table(pred, my_testing$survived)
 ```{r}
 test.results <- test.results %>%
   mutate(pred = as.numeric(pred))
-pROC_obj <- roc(as.numeric(as.character(test.results$survived)), test.results$pred,
+pROC_obj <- roc(as.numeric(as.factor(test.results$survived)), test.results$pred,
             smoothed = TRUE,
             ci=TRUE, ci.alpha=0.9, stratified=FALSE,
             plot=TRUE, auc.polygon=TRUE, max.auc.polygon=TRUE, grid=TRUE,
